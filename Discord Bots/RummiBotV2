@@ -1,0 +1,138 @@
+import discord
+from discord.ext import commands
+import json
+import os
+import math
+#I'm Makar and this is the second iteration of my first discord bot :)
+
+#changes:
+#I added command Change2 which changes the names of the players and creates a new 
+#saves file which can be accessed again if names are given in the same order.
+#You can now add as many players as you want
+#Added some error messages and checks to reduce the likelyhood of the program crashing.
+
+bot = commands.Bot(command_prefix='', intents=discord.Intents.all())
+names=['these','are','wrong']
+scores_file_name='ScoresFor'
+scores_file={}
+scoreswithnames={}
+scores=[]
+
+# Initialize scores if the file doesn't exist
+if os.path.exists('names.json'):
+    with open('names.json','r') as e:
+        names = json.load(e)
+    for name in names:
+        scores_file[name]={"wins": 0, "scores": [], "totalScore": 0}
+        scores_file_name+=name
+    scores_file_name+='.json'
+    if not os.path.exists(scores_file_name):
+        with open(scores_file_name, 'w') as f:
+            json.dump(scores_file, f)
+@bot.command()
+async def record(ctx, *args):
+    scores_file_name='ScoresFor'
+    scores_file={}
+    
+    #before starting the command, we check that the names file exists.
+    if not os.path.exists('names.json'):
+        await ctx.send("To change the players, type Change2 and the name of each player sepparated by spaces. \nEg. change2 Ahmed Ezra Adolf\n\nnote: if you change the order, a different save will load instead.")
+    else:
+        with open('names.json','r') as e:
+            names = json.load(e)
+
+        #creates the file content and name to later initialize the save file.
+        for name in names:
+            scores_file[name]={"wins": 0, "scores": [], "totalScore": 0}
+            scores_file_name+=name
+        scores_file_name+='.json'
+        
+        #initializes the save file if it doesn't exist 
+        if not os.path.exists(scores_file_name):
+            with open(scores_file_name, 'w') as f:
+                json.dump(scores_file, f)
+    
+        #we check that the input for the command is valid
+        if args.count('0')==1 and len(args)==len(names):
+            with open(scores_file_name, 'r') as f:
+                data = json.load(f)
+            for x in range(0,len(names)):
+                scores.append(int(args[x]))
+                scoreswithnames[names[x]]=scores[x]
+            winner_index = scores.index(0)
+            winner_name = list(data.keys())[winner_index]
+            # Update wins
+            data[winner_name]["wins"] += 1
+            
+            #this following section analyzes the data and the stats for the final message.
+            finalMSG=''
+            for player in list(data.keys()):
+                #Note that objects 'scoreswithnames' and 'data', share the same key names.
+                data[player]["scores"].append(scoreswithnames[player])
+            
+                totalscore=0
+                std_dev=0
+                bigsum=0
+                elements=len(data[player]["scores"])
+                for datelet in data[player]["scores"]:
+                    totalscore+=datelet
+                
+                #This updates the total score in the 'data' and will later be stored in the JSON file
+                data[player]["totalScore"] = totalscore
+                
+                #HERE i use std_dev as a temporary mean for the calculation of the actual standard deviation in the next 3 lines
+                std_dev=totalscore/elements
+                #using formula for standard deviation
+                for datelet in data[player]["scores"]:
+                    bigsum+=((datelet-std_dev)*(datelet-std_dev))
+                std_dev=round(math.sqrt(bigsum/elements),2)
+                wins=data[player]["wins"]
+                finalMSG+=f"Stats for {player}\nCombined Score: {totalscore}\nStandard Deviation: {std_dev}\n Average Score: {round(totalscore/elements,1)}\nWins: {wins}\n"
+
+            # Save updated data
+            with open(scores_file_name, 'w') as f:
+                json.dump(data, f)
+
+            await ctx.send(f"{finalMSG}\nOrder reminder: {", ".join(names)}")
+        else:
+            if len(args)>len(names):
+                await ctx.send("You typed the scores for too many players!")
+            if len(args)<len(names):
+                await ctx.send("You typed the scores for too few players!")
+            if args.count("0")>1:
+                await ctx.send("That's too many winners!")
+            if args.count("0")<1:
+                await ctx.send("You forgot the winner's zero!")
+            
+#this command changes the players
+@bot.command()
+async def change2(ctx, *args):
+    #Rummikub isn't solitaire, you can't play alone.
+    if len(args)>1:    
+        with open('names.json','w') as n:
+            json.dump(args, n)
+            await ctx.send(f"Players changed to: {", ".join(args)} <---THIS ORDER\nPlease input the scores in THAT order {args} after the 'record' command. Sepparate the scores by spaces. \nEg; If Peter got 23, Hamood got 40 and Xi won, you would type:\nrecord 23 40 0")
+    else:
+        await ctx.send("Rummikub isn't solitaire, you can't play it alone.")
+
+#this command resets the scores
+@bot.command()
+async def reset(ctx, what):
+    with open('names.json','r') as e:
+        names = json.load(e)
+    for name in names:
+        scores_file[name]={"wins": 0, "scores": [], "totalScore": 0}
+    if what=='scores' and os.path.exists('names.json'):
+        with open(scores_file_name, 'w') as f:
+            json.dump(scores_file, f)
+            await ctx.send("The file has been reset")
+        
+
+
+
+@bot.event
+async def on_ready():
+    print(f"Bot online as {bot.user.name}{bot.user.id}!")
+
+#REMEMBAH TO CHANGE YOUR TOKEN IF YOU'RE GONNA USE THIS!!!
+bot.run('BIG_FAT_TOKEN_GOES_HERE')    
